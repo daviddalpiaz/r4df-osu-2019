@@ -1,0 +1,343 @@
+---
+title: "`R` for DataFest @ OSU"
+author: "David Dalpiaz"
+date: 'Thursday, March 21, 2019'
+output:
+  html_document:
+    theme: spacelab
+    toc: yes
+    toc_depth: 1
+    df_print: paged
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(fig.align = "center")
+```
+
+***
+
+```{r, echo = FALSE}
+library(knitr)
+knitr::include_graphics("img/da.png")
+```
+
+```{r, echo = FALSE}
+knitr::include_graphics("img/datafest.jpg")
+```
+
+```{r, echo = FALSE}
+knitr::include_graphics("img/r4ds.png")
+```
+
+***
+
+# Tools
+
+- [`R`!](https://www.r-project.org/)
+- [RStudio](https://www.rstudio.com/)
+- The [`tidyverse`](https://www.tidyverse.org/)
+- [RMarkdown](https://rmarkdown.rstudio.com/)
+
+***
+
+# `R` and RStudio Versions
+
+```{r}
+version
+```
+
+# Packages
+
+```{r, echo = FALSE}
+knitr::include_graphics("img/tidyverse.png")
+```
+
+```{r}
+library("tidyverse")
+library("lubridate")
+```
+
+```{r, eval = FALSE}
+update.packages()
+```
+
+***
+
+# Import Data as Tibbles (`tibble`) with `reader`
+
+For this tutorial we will use data on the [OSU Men's Basketball games from the 2018 - 2019 season](https://www.sports-reference.com/cbb/schools/ohio-state/2019-gamelogs.html), excluding any games in the ongoing [2019 NCAA Tournament](http://www.espn.com/mens-college-basketball/tournament/bracket/_/id/201922/2019-ncaa-tournament) where OSU is an 11 seed. While an 11 seed isn't great, have a look at [this video](https://www.youtube.com/watch?v=4a1TUszkMfI) by Jon Bois which explains some of the weirdness around certain seeds in the tournament.
+
+(This data was not used during the live tutorial, but is much easier to understand, and better for sharing publicly.)
+
+```{r, eval = FALSE}
+osu_bb = read_csv(file = "data/osu-bb-2019-games.csv")
+```
+
+```{r}
+osu_bb = read_csv("data/osu-bb-2019-games.csv", 
+    col_types = cols(Date = col_date(format = "%m-%d-%y"),
+                     # OPPPF = col_skip(), 
+                     # OPPTOV = col_skip(),
+                     `3PPERC` = col_number(), 
+                     FGPERC = col_number(), 
+                     FTPERC = col_number(), 
+                     OPP3PPERC = col_number(), 
+                     OPPFGPERC = col_number(), 
+                     OPPFTPERC = col_number()))
+```
+
+```{r}
+osu_bb
+```
+
+```{r, eval = FALSE}
+View(osu_bb)
+```
+
+***
+
+# Tidy Data
+
+![](img/tidy.png)
+
+***
+
+# Data Wrangling with `dplyr` and Friends
+
+## Data Formatting
+
+- "Import Dataset" Tool
+- `lubridate`
+- `stringr`
+- `forcats`
+
+```{r}
+osu_bb$Date[1:5]
+```
+
+```{r}
+day(osu_bb$Date[1:5])
+yday(osu_bb$Date[1:5])
+week(osu_bb$Date[1:5])
+year(osu_bb$Date[1:5])
+month(osu_bb$Date[1:5])
+```
+
+```{r}
+unique(osu_bb$Opponent)[1:20]
+```
+
+```{r}
+str_count(unique(osu_bb$Opponent)[1:20])
+```
+
+```{r}
+str_subset(unique(osu_bb$Opponent)[1:20], "State")
+```
+
+```{r}
+str_locate(unique(osu_bb$Opponent)[1:20], "State")
+```
+
+```{r}
+head(osu_bb$Home)
+unique(osu_bb$Home)
+```
+
+```{r}
+# change NAs to H for "home"
+osu_bb$Home = fct_explicit_na(osu_bb$Home, "H")
+```
+
+
+```{r}
+ggplot(osu_bb, aes(x = Home)) + 
+  geom_bar() + 
+  coord_flip()
+```
+
+```{r}
+ggplot(osu_bb, aes(x = fct_infreq(Home))) + 
+  geom_bar() + 
+  coord_flip()
+```
+
+```{r}
+levels(as.factor(osu_bb$Home))
+levels(fct_infreq(osu_bb$Home))
+```
+
+## One-Table `dplyr` Verbs
+
+- `mutate()` - Create new variables
+- `select()` - Working with columns
+- `filter()` - Working with rows
+- `arrange()` - Reordering rows
+- `summarise()` - Reduce data to summary statistics
+- `group_by()` - Use above operations on "groups" in the data
+
+```{r}
+filter(osu_bb, Home == "@")
+```
+
+```{r}
+osu_bb %>% filter(Home == "@")
+```
+
+```{r, eval = FALSE}
+osu_bb %>% filter(Home == "@") %>% View()
+```
+
+```{r}
+osu_bb %>% filter(Home == "@", OPPPTS < 60)
+```
+
+```{r}
+osu_bb %>% filter(Home == "@") %>% 
+  summarize(avg_fg = mean(FG))
+```
+
+```{r}
+osu_bb %>% filter(Home == "@") %>% 
+  summarize(avg_fg = mean(FG)) %>% unlist()
+```
+
+```{r}
+osu_bb %>% filter(Home == "@") %>% 
+  summarize(avg_fg = mean(FG), sd_fg = sd(FG))
+```
+
+```{r}
+osu_bb %>% filter(Home == "@") %>% 
+  count(Outcome)
+```
+
+```{r}
+osu_bb %>% filter(Outcome == "W") %>% 
+  count(Home) %>% arrange(-n)
+```
+
+```{r}
+osu_bb %>% filter(Home == "@") %>%
+  arrange(`3P`, desc(`3PPERC`)) %>% select(Date, Home, Opponent, Outcome, `3P`, `3PPERC`)
+```
+
+
+```{r}
+osu_bb %>% summarize(avg_ft = mean(FT))
+osu_bb %>% group_by(Home) %>% summarize(avg_ft = mean(FT))
+```
+
+```{r}
+osu_bb %>% group_by(Home) %>% 
+  summarize(n_ft = sum(FT), 
+            avg_ft = mean(FT), 
+            sd_ft = sd(FT),
+            max_ft = max(FT)) %>% 
+  arrange(-n_ft)
+```
+
+```{r}
+osu_bb %>% mutate(shots = FG + FT, shots_2_idk = 2 * shots) %>%
+  select(-OPPFG:-OPPPF)
+```
+
+## Two-Table `dplyr` Verbs
+
+### Mutating Joins
+
+- `inner_join(x, y)` only includes observations that match in both `x` and `y`
+- `left_join(x, y)` includes all observations in `x`, regardless of whether they match or not
+- `right_join(x, y)` includes all observations in `y`. It’s equivalent to `left_join(y, x)`, but the columns will be ordered differently
+- `full_join()` includes all observations from `x` and `y`
+
+```{r, echo = FALSE}
+superheroes = "
+    name, alignment, gender,         publisher
+ Magneto,       bad,   male,            Marvel
+   Storm,      good, female,            Marvel
+Mystique,       bad, female,            Marvel
+  Batman,      good,   male,                DC
+   Joker,       bad,   male,                DC
+Catwoman,       bad, female,                DC
+ Hellboy,      good,   male, Dark Horse Comics
+"
+superheroes = read_csv(superheroes, skip = 1)
+```
+
+```{r, echo = FALSE}
+publishers = "
+  publisher, yr_founded
+         DC,       1934
+     Marvel,       1939
+      Image,       1992
+"
+publishers = read_csv(publishers, skip = 1)
+```
+
+```{r}
+superheroes
+```
+
+```{r}
+publishers
+```
+
+```{r}
+inner_join(superheroes, publishers)
+```
+
+```{r}
+left_join(superheroes, publishers)
+```
+
+### Filtering Joins
+
+- `semi_join(x, y)` keeps all observations in `x` that have a match in `y`
+- `anti_join(x, y)` drops all observations in `x` that have a match in `y`
+
+***
+
+# Visualisation with `ggplot2`
+
+```{r}
+osu_bb %>% ggplot(aes(x = FTPERC)) +
+  geom_histogram(bins = 10) + 
+  facet_wrap(~Home) + 
+  labs(x = "Average CPM")
+```
+
+```{r, fig.height = 5, fig.width = 10}
+osu_bb %>%
+  ggplot(aes(x = FTPERC, y = FGPERC, color = Outcome, size = FG)) +
+  geom_point(alpha = 0.6) +
+  facet_wrap(~Home) +
+  labs(x = "Free Throw Percentage", y = "Field Goal Percentage")
+```
+
+```{r}
+osu_bb %>% filter(FGPERC < 30)
+```
+
+***
+
+# Presentation with `rmarkdown`
+
+```{r, echo = FALSE}
+knitr::include_graphics("img/rmarkdown.png")
+```
+
+***
+
+# Resources
+
+- [`R` for DataFest @ OSU](http://go.osu.edu/r4df)
+- [`R` for Data Science](https://r4ds.had.co.nz/)
+- [Advanced `R`](http://adv-r.had.co.nz/)
+- [DataCamp](https://www.datacamp.com/)
+- [RStudio Cheat Sheets](https://www.rstudio.com/resources/cheatsheets/)
+- [`dplyr` Documentation](https://dplyr.tidyverse.org/)
+- [Jenny Bryan's `dply` `join()` Cheat Sheet](https://stat545.com/bit001_dplyr-cheatsheet.html)
+- [RStudio Keyboard Shortcuts](https://support.rstudio.com/hc/en-us/articles/200711853-Keyboard-Shortcuts)
+
+***
